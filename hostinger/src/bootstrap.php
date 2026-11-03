@@ -30,6 +30,10 @@ function cfg(?string $key = null)
             'cron_key' => (string)($env('CRON_KEY') ?? $user['cron_key'] ?? ''),
             'cron_seconds' => (int)($env('CRON_RUN_SECONDS') ?? $user['cron_seconds'] ?? 55),
             'allow_self_signed' => ($env('SMTP_ALLOW_SELF_SIGNED') ?? '') === '1',
+            // "Write with AI" (Google Gemini). Get a free key at https://aistudio.google.com/apikey
+            'gemini_key' => trim((string)($env('GEMINI_API_KEY') ?? $user['gemini_key'] ?? '')),
+            'gemini_models' => array_values(array_filter(array_map('trim', $env('GEMINI_MODELS') !== null ? explode(',', $env('GEMINI_MODELS')) : (array)($user['gemini_models'] ?? ['gemini-3.8-flash', 'gemini-3.5-flash-lite'])))),
+            'gemini_endpoint' => (string)($env('GEMINI_ENDPOINT') ?? 'https://generativelanguage.googleapis.com/v1beta/models'),
         ];
         $c['insecure'] = $c['secret'] === 'dev-secret-change-me' || $c['admin_password'] === 'change-me-now';
     }
@@ -52,4 +56,5 @@ require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/smtp.php';
 require_once __DIR__ . '/signature.php';
 require_once __DIR__ . '/mailer.php';
+require_once __DIR__ . '/ai.php';
 require_once __DIR__ . '/worker.php';

@@ -22,6 +22,13 @@ return [
     // Only needed if you want to run cron through a web address (see cron.php):
     'cron_key' => '',
 
+    // "Write with AI" in the campaign editor (Google Gemini, free tier).
+    // 1. Open https://aistudio.google.com/apikey  2. Create API key  3. Paste it here.
+    'gemini_key' => '',
+    // Models are tried in this order (if the first is unknown or out of free quota, the next one is used).
+    // Current names are listed at https://ai.google.dev/gemini-api/docs/models
+    // 'gemini_models' => ['gemini-3.8-flash', 'gemini-3.5-flash-lite'],
+
     // Where the database file lives. The default (the data folder here) is protected by .htaccess.
     // For extra safety use a folder ABOVE public_html, e.g. '/home/u123456789/mailhub-data/mailhub.sqlite'
     // 'db_path' => '/home/u123456789/mailhub-data/mailhub.sqlite',

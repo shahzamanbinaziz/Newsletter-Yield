@@ -306,7 +306,7 @@ async function viewEditor(ctx, id) {
         : '<p class="mut" style="margin:0">No mailbox yet. <a href="#/mailboxes">Add one</a>.</p>'}
         <p class="hint">Select several to share the sending between mailboxes.</p></fieldset>
       <label>Email content <small>(HTML)</small></label>
-      <div class="starters">Start from: <button class="btn sm" type="button" data-st="newsletter">Newsletter</button><button class="btn sm" type="button" data-st="announce">Announcement</button><button class="btn sm" type="button" data-st="plain">Short note</button></div>
+      <div class="starters">Start from: <button class="btn sm" type="button" data-st="newsletter">Newsletter</button><button class="btn sm" type="button" data-st="announce">Announcement</button><button class="btn sm" type="button" data-st="plain">Short note</button><button class="btn sm ai-btn" type="button" id="ai-open" hidden>&#10024; Write with AI</button></div>
       <textarea id="f-html" rows="16" spellcheck="false"></textarea>
       <p class="hint">Personalise with <code>{{first_name}}</code>, <code>{{first_name|there}}</code> (fallback), <code>{{last_name}}</code>, <code>{{email}}</code>, <code>{{company}}</code>. Links are tracked automatically.</p>
       </fieldset>
@@ -335,6 +335,56 @@ async function viewEditor(ctx, id) {
     if ($('#f-html').value.trim() && !(await confirmBox('Replace content?', '<p>This replaces what you have written in the content box.</p>', 'Replace'))) return;
     $('#f-html').value = STARTERS[b.dataset.st]; refresh();
   }; });
+
+  // "Write with AI": only shown when the server has a Gemini key (older servers answer 404 and the button stays hidden)
+  if (!locked && $('#ai-open')) {
+    api('/ai/status').then((r) => { if (r && r.enabled !== undefined && ctx.alive() && $('#ai-open')) { $('#ai-open').hidden = false; $('#ai-open').dataset.on = r.enabled ? '1' : '0'; } }).catch(() => {});
+    $('#ai-open').onclick = () => openAi($('#ai-open').dataset.on === '1');
+  }
+  function openAi(enabled) {
+    if (!enabled) {
+      const m = modal('Write with AI', `<p>Turn this on once (free):</p>
+        <ol><li>Open <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> and create an API key.</li>
+        <li>On your hosting open <code>config.php</code> and paste it: <code>'gemini_key' =&gt; 'YOUR_KEY',</code></li>
+        <li>Save, reload this page.</li></ol>
+        <div class="row end"><button class="btn primary" data-no type="button">Got it</button></div>`);
+      $('[data-no]', m.el).onclick = m.close;
+      return;
+    }
+    const m = modal('Write with AI', `<label>What is this newsletter about?<textarea id="ai-prompt" rows="4" maxlength="3000" placeholder="Example: Monthly update for our customers. We launched a free SEO checklist, 3 tips to grow Instagram reach, and a 20% off offer until Friday."></textarea></label>
+      <div class="ai-opts"><label>Tone<select id="ai-tone"><option value="friendly">Friendly</option><option value="professional">Professional</option><option value="bold">Bold</option><option value="playful">Playful</option></select></label>
+      <label>Language<select id="ai-lang"><option value="english">English</option><option value="roman_urdu">Roman Urdu</option><option value="urdu">Urdu</option></select></label>
+      <label>Length<select id="ai-len"><option value="short">Short</option><option value="medium" selected>Medium</option><option value="long">Long</option></select></label></div>
+      <div class="row end gap" style="margin:6px 0 4px"><button class="btn primary" id="ai-go" type="button">Generate 3 designs</button></div>
+      <p class="hint">Takes about 10-30 seconds. Check every fact and replace the [bracket] placeholders and example links before sending.</p>
+      <div id="ai-out"></div>`, { wide: true });
+    const out = m.$('#ai-out');
+    m.$('#ai-go').onclick = async () => {
+      const prompt = m.$('#ai-prompt').value.trim();
+      if (prompt.length < 10) return toast('Describe the newsletter in a sentence or two.', 'bad');
+      const go = m.$('#ai-go');
+      go.disabled = true; go.textContent = 'Writing...';
+      out.innerHTML = '<div class="ai-wait"><span class="spin"></span> Designing three versions...</div>';
+      try {
+        const r = await post('/ai/newsletter', { company_id: state.cid, prompt, tone: m.$('#ai-tone').value, language: m.$('#ai-lang').value, length: m.$('#ai-len').value });
+        out.innerHTML = `<div class="ai-grid">${r.variants.map((v, i) => `<div class="ai-card"><div class="ai-name">${esc(v.name)}</div>
+          <iframe sandbox title="${esc(v.name)}" data-i="${i}"></iframe>
+          <div class="ai-meta"><b>${esc(v.subject)}</b><br><span class="mut small">${esc(v.preheader)}</span></div>
+          <button class="btn primary sm" type="button" data-use="${i}">Use this design</button></div>`).join('')}</div>`;
+        $$('iframe[data-i]', out).forEach((f) => { const v = r.variants[f.dataset.i]; f.srcdoc = `<body style="margin:0;padding:18px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#222">${v.html}</body>`; });
+        $$('[data-use]', out).forEach((b) => b.onclick = () => {
+          const v = r.variants[b.dataset.use];
+          $('#f-html').value = v.html;
+          if (v.subject) $('#f-subject').value = v.subject;
+          if (v.preheader) $('#f-pre').value = v.preheader;
+          if (!$('#f-name').value.trim()) $('#f-name').value = v.subject || 'AI newsletter';
+          refresh(); m.close(); toast('Design added. Review it, then send a test.');
+        });
+      } catch (e) {
+        out.innerHTML = `<p class="err-text">${esc(e.message)}</p>`;
+      } finally { go.disabled = false; go.textContent = 'Generate again'; }
+    };
+  }
 
   async function save() {
     const body = read();

@@ -473,6 +473,25 @@ on('GET', '/campaigns/(\d+)/recipients', function ($a) {
     return ['total' => $total, 'rows' => $rows];
 });
 
+/* AI newsletter writer (Gemini) */
+on('GET', '/ai/status', function () { return ['enabled' => ai_enabled()]; });
+on('POST', '/ai/newsletter', function () {
+    global $BODY;
+    $c = require_company();
+    if (!ai_enabled()) bad('AI is not set up yet. Add your Gemini key as gemini_key in config.php.');
+    $prompt = str_clip($BODY['prompt'] ?? '', 3000);
+    if (mb_strlen($prompt) < 10) bad('Describe the newsletter in a sentence or two.');
+    $tone = ['friendly' => 'warm and friendly', 'professional' => 'professional and confident', 'bold' => 'bold, energetic and direct', 'playful' => 'playful and witty'][$BODY['tone'] ?? ''] ?? 'warm and friendly';
+    $lang = in_array($BODY['language'] ?? '', ['english', 'roman_urdu', 'urdu'], true) ? $BODY['language'] : 'english';
+    $length = in_array($BODY['length'] ?? '', ['short', 'medium', 'long'], true) ? $BODY['length'] : 'medium';
+    @set_time_limit(120);
+    try {
+        return ai_generate($c, $prompt, $tone, $lang, $length);
+    } catch (RuntimeException $e) {
+        bad($e->getMessage(), 502);
+    }
+});
+
 /* overview */
 on('GET', '/overview', function () {
     $c = require_company();
