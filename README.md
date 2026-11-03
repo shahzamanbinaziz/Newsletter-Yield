@@ -14,6 +14,12 @@ Apna khud ka newsletter platform. Aap company ke mailboxes (Hostinger, Google Wo
 | **Signature designer** | 3 designs, live preview, har email mein khud lagti hai, HTML copy karke Gmail/Outlook mein bhi |
 | **Deliverability** | One-click unsubscribe header, plain-text version, slow sending, daily limits |
 
+## Hostinger shared hosting? Use the PHP edition
+
+Agar aap ke paas sirf Hostinger Premium/Business web hosting hai (Node.js nahi), to **`hostinger/`** folder use karo. Wohi dashboard aur features, magar backend PHP mein, emails cron job se jati hain. Poori guide: [`hostinger/README_HOSTINGER.md`](hostinger/README_HOSTINGER.md).
+
+Is README ke baqi steps **Node.js edition** (VPS / Railway) ke hain.
+
 ## Do hisson ka system
 
 ```

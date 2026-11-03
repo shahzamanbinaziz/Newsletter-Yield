@@ -33,12 +33,17 @@ const smtp = new SMTPServer({
 (async () => {
   await new Promise((r) => smtp.listen(2525, '127.0.0.1', r));
   const dbFile = path.join(os.tmpdir(), 'mailhub-test-' + Date.now() + '.db');
-  const server = spawn('node', ['server.js'], {
-    cwd: path.join(__dirname, '..'),
-    env: { ...process.env, PORT, DB_PATH: dbFile, APP_SECRET: 'test-secret', ADMIN_EMAIL: 'admin@test.com', ADMIN_PASSWORD: 'pw12345', BASE_URL: BASE, TICK_MS: 250, ALLOWED_ORIGIN: 'https://user.github.io' },
-    stdio: ['ignore', 'inherit', 'inherit'],
-  });
-  const stop = () => { server.kill(); smtp.close(); try { fs.rmSync(dbFile, { force: true }); } catch {} };
+  const env = { ...process.env, PORT, DB_PATH: dbFile, APP_SECRET: 'test-secret', ADMIN_EMAIL: 'admin@test.com', ADMIN_PASSWORD: 'pw12345', BASE_URL: BASE, TICK_MS: 250, ALLOWED_ORIGIN: 'https://user.github.io' };
+  const procs = [];
+  if (process.env.TARGET === 'php') {
+    // PHP edition (folder "hostinger"): web server + the cron worker running for 120 seconds
+    const dir = path.join(__dirname, '..', '..', 'hostinger');
+    procs.push(spawn('php', ['-S', '127.0.0.1:' + PORT, 'dev-router.php'], { cwd: dir, env: { ...env, PHP_CLI_SERVER_WORKERS: '4' }, stdio: ['ignore', 'inherit', 'inherit'] }));
+    procs.push(spawn('php', ['cron.php'], { cwd: dir, env: { ...env, CRON_RUN_SECONDS: '120' }, stdio: ['ignore', 'inherit', 'inherit'] }));
+  } else {
+    procs.push(spawn('node', ['server.js'], { cwd: path.join(__dirname, '..'), env, stdio: ['ignore', 'inherit', 'inherit'] }));
+  }
+  const stop = () => { procs.forEach((p) => p.kill()); smtp.close(); try { fs.rmSync(dbFile, { force: true }); } catch {} };
 
   try {
     await until(async () => { try { return (await fetch(BASE + '/health')).ok; } catch { return false; } }, 10000, 200);

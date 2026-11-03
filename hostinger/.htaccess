@@ -1,0 +1,23 @@
+# MailHub on Apache / LiteSpeed (Hostinger). Pretty addresses for the API and the tracking links.
+Options -Indexes
+DirectoryIndex index.html
+
+<IfModule mod_rewrite.c>
+RewriteEngine On
+# Hand the Authorization header (login token) to PHP. Some hosts remove it otherwise.
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+RewriteRule ^api(/.*)?$ api.php [L,QSA]
+RewriteRule ^health$ api.php [L]
+RewriteRule ^t/ track.php [L,QSA]
+</IfModule>
+
+# Never let anyone download settings, database or logs
+<FilesMatch "^(config(\.sample)?\.php|.*\.(sqlite|db|lock|log))$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>
