@@ -3,7 +3,16 @@
 // The API key stays on the server (config.php). The dashboard never sees it.
 declare(strict_types=1);
 
-function ai_enabled(): bool { return cfg('gemini_key') !== ''; }
+/** The Gemini key: config.php wins, otherwise the one saved in the dashboard (Settings, stored encrypted). */
+function ai_key(): string
+{
+    if (cfg('gemini_key') !== '') return cfg('gemini_key');
+    $r = one("SELECT v FROM settings WHERE k='gemini_key'");
+    if (!$r) return '';
+    try { return decrypt_text($r['v']); } catch (Throwable $e) { return ''; }
+}
+function ai_key_source(): string { return cfg('gemini_key') !== '' ? 'config' : (ai_key() !== '' ? 'dashboard' : 'none'); }
+function ai_enabled(): bool { return ai_key() !== ''; }
 
 /** Three different design directions, one request each (run in parallel, so it is fast). */
 function ai_styles(): array
@@ -91,13 +100,14 @@ function ai_error_message(int $status, ?array $body): string
 function ai_http_multi(array $jobs): array
 {
     if (!function_exists('curl_init')) throw new RuntimeException('PHP curl is not enabled on this hosting. Turn it on in hPanel, PHP Configuration, Extensions.');
+    $key = ai_key();
     $mh = curl_multi_init();
     $hs = [];
     foreach ($jobs as $k => $j) {
         $ch = curl_init($j['url']);
         curl_setopt_array($ch, [
             CURLOPT_POST => true, CURLOPT_POSTFIELDS => $j['body'], CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'x-goog-api-key: ' . cfg('gemini_key')],
+            CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'x-goog-api-key: ' . $key],
             CURLOPT_TIMEOUT => 80, CURLOPT_CONNECTTIMEOUT => 10,
         ]);
         curl_multi_add_handle($mh, $ch);
@@ -166,4 +176,19 @@ function ai_generate(array $company, string $prompt, string $tone, string $lang,
         if (!$retryNext) break;
     }
     throw new RuntimeException($lastError);
+}
+
+/** One tiny request, used by Settings, "Test key". */
+function ai_test_key(): array
+{
+    $models = cfg('gemini_models');
+    $model = $models[0] ?? 'gemini-3.8-flash';
+    $url = rtrim(cfg('gemini_endpoint'), '/') . '/' . rawurlencode($model) . ':generateContent';
+    $res = ai_http_multi([0 => ['url' => $url, 'body' => json_encode([
+        'contents' => [['role' => 'user', 'parts' => [['text' => 'Reply with the single word OK.']]]],
+        'generationConfig' => ['maxOutputTokens' => 32],
+    ])]]);
+    [$status, $body, $err] = $res[0];
+    if ($status === 200) return ['ok' => true, 'model' => $model];
+    return ['ok' => false, 'error' => ai_error_message($status, $body ?: ['error' => ['message' => $err]])];
 }

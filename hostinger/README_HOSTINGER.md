@@ -59,18 +59,19 @@ Yeh script ek minute chalti hai aur agle minute ki cron ko pakda hua kaam de det
 
 Campaign editor mein **"Write with AI"** button: aap sirf likhte ho ke newsletter kis baare mein hai, aur AI **3 alag design** (Clean editorial, Bold announcement, Short personal note) bana deta hai. Pasand wala "Use this design" dabao, subject aur preview text bhi khud bhar jata hai.
 
-**Ek baar setup:**
+**Ek baar setup (file edit ki zaroorat nahi):**
 1. `aistudio.google.com/apikey` kholo (Google account se login), **Create API key**, key copy karo.
-2. Hostinger File Manager mein `config.php` Edit karo, yeh line badlo:
-   `'gemini_key' => 'YAHAN-APNI-KEY',`
-3. Save karo, dashboard reload karo. Editor mein "Write with AI" button aa jayega.
+2. Dashboard mein left menu **Settings**, key paste karo, **Save key**, phir **Test key**. "Gemini key works" aana chahiye.
+3. Campaign editor mein **Write with AI** button aa jata hai.
+
+Key database mein encrypted save hoti hai, isliye files update karne par bhi rehti hai. (Chaho to `config.php` mein `'gemini_key'` bhi likh sakte ho, wo Settings se pehle chalti hai.)
 
 **Dhyan rakho:**
 - Free tier ki limits Google tay karta hai (AI Studio mein dikhti hain). Ek "Generate" 3 requests use karta hai. Limit poori ho to "free limit reached" likha aata hai, ek minute baad dobara karo.
 - Model ke naam kabhi badal jate hain. Agar "model not found" aaye to `config.php` mein `'gemini_models' => ['naya-model-naam'],` ki line kholo. Naam yahan milte hain: `ai.google.dev/gemini-api/docs/models`. Pehla model fail ho to agla khud try hota hai.
 - Jo likhoge woh Google ko jata hai. Customers ka private data prompt mein mat likho.
 - AI facts ghalat likh sakta hai. Bhejne se pehle har number, date aur link khud check karo. `[date]` jaise bracket placeholders aur example links badlo.
-- Key sirf `config.php` mein rehti hai, dashboard ya browser ko nazar nahi aati.
+- Poori key dashboard ya browser ko kabhi wapas nahi dikhai jati, sirf aakhri 4 akshar.
 
 ## Hosting ki hadein (zaroor parho)
 - Shared hosting par har mailbox ki **daily/hourly sending limit** hoti hai (Hostinger ki apni). Dashboard mein mailbox ki `daily limit` us se **kam** rakho. Hostinger ki help page par aap ke plan ki limit dekh lo.
@@ -96,4 +97,4 @@ Campaign editor mein **"Write with AI"** button: aap sirf likhte ho ke newslette
 - Backup: `data/mailhub.sqlite` ko haftay mein download kar lo.
 
 ## Update karna
-Naye version ki files upload karo (`config.php` aur `data/` ko mat chhedo), purani files overwrite hone do.
+Update zip upload karo, Extract, **Overwrite**. Update zip mein `config.php` aur `data/` hoti hi nahi, is liye aap ka password, database, contacts, mailboxes aur Gemini key sab wahin rehte hain. Naya `config.sample.php` bas example hai, usay ignore kar sakte ho.

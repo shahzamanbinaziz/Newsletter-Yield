@@ -127,6 +127,10 @@ CREATE TABLE IF NOT EXISTS events (
 );
 CREATE INDEX IF NOT EXISTS idx_ev_campaign ON events(campaign_id, type);
 CREATE INDEX IF NOT EXISTS idx_ev_message ON events(message_id, type);
+CREATE TABLE IF NOT EXISTS settings (
+  k TEXT PRIMARY KEY,
+  v TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS login_attempts (
   ip TEXT PRIMARY KEY,
   n INTEGER NOT NULL,

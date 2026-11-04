@@ -125,8 +125,9 @@ const ICONS = {
   contacts: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>',
   companies: '<path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M9 13h.01M9 17h.01M15 9h.01M15 13h.01M15 17h.01"/>',
   mailboxes: '<path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM22 6l-10 7L2 6"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
 };
-const NAV = [['overview', 'Overview'], ['campaigns', 'Campaigns'], ['contacts', 'Contacts'], ['companies', 'Companies & signatures'], ['mailboxes', 'Mailboxes']];
+const NAV = [['overview', 'Overview'], ['campaigns', 'Campaigns'], ['contacts', 'Contacts'], ['companies', 'Companies & signatures'], ['mailboxes', 'Mailboxes'], ['settings', 'Settings']];
 
 function renderShell() {
   $('#root').innerHTML = `<div class="app">
@@ -174,6 +175,7 @@ const ROUTES = [
   [/^#\/contacts$/, viewContacts],
   [/^#\/companies$/, viewCompanies],
   [/^#\/mailboxes$/, viewMailboxes],
+  [/^#\/settings$/, viewSettings],
 ];
 async function route() {
   clearTimeout(timer);
@@ -185,7 +187,7 @@ async function route() {
   if (!view) return;
   const hit = ROUTES.find(([re]) => re.test(h));
   if (!hit) { location.hash = '#/overview'; return; }
-  if (!/^#\/companies/.test(h) && !state.cid) { view.innerHTML = noCompanyHtml(); return; }
+  if (!/^#\/(companies|settings)/.test(h) && !state.cid) { view.innerHTML = noCompanyHtml(); return; }
   view.innerHTML = '<div class="loading">Loading…</div>';
   window.scrollTo(0, 0);
   try { await hit[1]({ m: h.match(hit[0]), alive, view }); }
@@ -345,10 +347,9 @@ async function viewEditor(ctx, id) {
     if (!enabled) {
       const m = modal('Write with AI', `<p>Turn this on once (free):</p>
         <ol><li>Open <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> and create an API key.</li>
-        <li>On your hosting open <code>config.php</code> and paste it: <code>'gemini_key' =&gt; 'YOUR_KEY',</code></li>
-        <li>Save, reload this page.</li></ol>
-        <div class="row end"><button class="btn primary" data-no type="button">Got it</button></div>`);
-      $('[data-no]', m.el).onclick = m.close;
+        <li>Open <a href="#/settings">Settings</a> here in the dashboard and paste it.</li></ol>
+        <div class="row end gap"><button class="btn" data-no type="button">Close</button><a class="btn primary" href="#/settings" data-go>Open Settings</a></div>`);
+      $('[data-no]', m.el).onclick = m.close; $('[data-go]', m.el).onclick = m.close;
       return;
     }
     const m = modal('Write with AI', `<label>What is this newsletter about?<textarea id="ai-prompt" rows="4" maxlength="3000" placeholder="Example: Monthly update for our customers. We launched a free SEO checklist, 3 tips to grow Instagram reach, and a 20% off offer until Friday."></textarea></label>
@@ -693,6 +694,45 @@ function companyModal(co) {
       m.close(); await loadCompanies(); toast('Company saved'); route();
     } catch (e) { m.$('#c-err').textContent = e.message; }
   };
+}
+
+/* ---------- settings ---------- */
+async function viewSettings(ctx) {
+  let st;
+  try { st = await api('/settings'); } catch (e) {
+    ctx.view.innerHTML = `<div class="page-head"><div><h1>Settings</h1></div></div><div class="card"><p class="mut" style="margin:0">Settings are available on the Hostinger (PHP) edition.</p></div>`; return;
+  }
+  if (!ctx.alive()) return;
+  const paint = () => {
+    const src = st.gemini_key_source;
+    ctx.view.innerHTML = `<div class="page-head"><div><h1>Settings</h1><p>Saved on your server. They stay when you update the files.</p></div></div>
+      <div class="card" style="max-width:640px"><h3>&#10024; Write with AI (Google Gemini)</h3>
+        <p class="mut" style="margin-top:0">Paste your free Gemini API key and a "Write with AI" button appears in the campaign editor.</p>
+        <p>Status: ${st.gemini_key_set ? `<span class="badge ok">Key saved</span> <code>${esc(st.gemini_key_hint)}</code> ${src === 'config' ? '<span class="mut small">(set in config.php)</span>' : ''}` : '<span class="badge">No key yet</span>'}</p>
+        ${src === 'config' ? '<p class="hint">This key comes from config.php. Remove it there if you want to manage it here.</p>' : `
+        <label>API key<input id="gk" type="password" autocomplete="off" placeholder="${st.gemini_key_set ? 'Paste a new key to replace the saved one' : 'AIza...'}"></label>
+        <p class="hint">Get one free at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> (sign in with Google, then "Create API key").</p>`}
+        <div class="row gap wrap" style="margin-top:14px">
+          ${src === 'config' ? '' : '<button class="btn primary" id="gsave" type="button">Save key</button>'}
+          ${st.gemini_key_set ? '<button class="btn" id="gtest" type="button">Test key</button>' : ''}
+          ${st.gemini_key_set && src !== 'config' ? '<button class="btn danger" id="grm" type="button">Remove key</button>' : ''}
+        </div></div>`;
+    if ($('#gsave')) $('#gsave').onclick = async () => {
+      const v = $('#gk').value.trim();
+      if (!v) return toast('Paste your key first.', 'bad');
+      try { st = await put('/settings', { gemini_key: v }); toast('Key saved. Press "Test key" to check it.'); paint(); } catch (e) { toast(e.message, 'bad'); }
+    };
+    if ($('#grm')) $('#grm').onclick = async () => {
+      if (!(await confirmBox('Remove key?', '<p>The "Write with AI" button will stop working until you add a key again.</p>', 'Remove', true))) return;
+      try { st = await put('/settings', { gemini_key: '' }); toast('Key removed'); paint(); } catch (e) { toast(e.message, 'bad'); }
+    };
+    if ($('#gtest')) $('#gtest').onclick = async () => {
+      const b = $('#gtest'); b.disabled = true; b.textContent = 'Testing...';
+      try { const r = await post('/settings/gemini-test'); r.ok ? toast('Gemini key works (' + r.model + ')') : toast(r.error, 'bad'); } catch (e) { toast(e.message, 'bad'); }
+      b.disabled = false; b.textContent = 'Test key';
+    };
+  };
+  paint();
 }
 
 /* ---------- mailboxes ---------- */

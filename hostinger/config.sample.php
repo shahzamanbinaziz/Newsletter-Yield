@@ -22,8 +22,8 @@ return [
     // Only needed if you want to run cron through a web address (see cron.php):
     'cron_key' => '',
 
-    // "Write with AI" in the campaign editor (Google Gemini, free tier).
-    // 1. Open https://aistudio.google.com/apikey  2. Create API key  3. Paste it here.
+    // "Write with AI" (Google Gemini). Easiest: paste the key in the dashboard under Settings.
+    // Only fill this in if you prefer the file. Free key: https://aistudio.google.com/apikey
     'gemini_key' => '',
     // Models are tried in this order (if the first is unknown or out of free quota, the next one is used).
     // Current names are listed at https://ai.google.dev/gemini-api/docs/models

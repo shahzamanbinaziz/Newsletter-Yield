@@ -11,7 +11,9 @@ const mock = http.createServer((req, res) => {
     const body = JSON.parse(b || '{}');
     seen.push({ url: req.url, key: req.headers['x-goog-api-key'], body });
     if (req.url.includes('gemini-first')) { res.writeHead(429, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: { message: 'quota' } })); }
-    const dir = body.contents[0].parts[0].text.match(/Design direction: ([A-Za-z ]+)\./)[1];
+    const m = body.contents[0].parts[0].text.match(/Design direction: ([A-Za-z ]+)\./);
+    if (!m) { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ candidates: [{ content: { parts: [{ text: 'OK' }] } }] })); }
+    const dir = m[1];
     const html = `\`\`\`html\n<script>alert(1)</script><h1 onclick="x()" style="color:#5b2a9a">Hello {{first_name|there}} - ${dir}</h1><p>Some real looking body text for the newsletter.</p><a href="javascript:alert(2)" style="color:red">bad</a><a href="https://example.com">ok</a><iframe src="x"></iframe>\n\`\`\``;
     const text = JSON.stringify({ subject: 'Subject for ' + dir, preheader: 'Pre ' + dir, html });
     res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -41,6 +43,36 @@ const mock = http.createServer((req, res) => {
     const all = r.variants.map(v => v.html).join('');
     assert.ok(!/<script|<iframe|onclick|javascript:/i.test(all) && all.includes('https://example.com') && all.includes('{{first_name|there}}')); console.log('PASS html sanitised (script, iframe, onclick, javascript: removed)');
     assert.ok(!JSON.stringify(r).includes('TESTKEY')); console.log('PASS key never returned');
+
+    // ---- key saved from the dashboard (no config.php editing) ----
+    const db2 = path.join(os.tmpdir(), 'ai2-' + Date.now() + '.sqlite');
+    const env2 = { ...env, DB_PATH: db2, GEMINI_API_KEY: '', GEMINI_MODELS: 'gemini-second' };
+    const php2 = spawn('php', ['-S', '127.0.0.1:8098', 'dev-router.php'], { cwd: dir, env: env2, stdio: 'ignore' });
+    try {
+      await new Promise(r => setTimeout(r, 800));
+      const B2 = 'http://127.0.0.1:8098';
+      const j2 = async (p, m = 'GET', body, tok) => { const r = await fetch(B2 + '/api' + p, { method: m, headers: { 'Content-Type': 'application/json', ...(tok ? { Authorization: 'Bearer ' + tok } : {}) }, body: body ? JSON.stringify(body) : undefined }); return { status: r.status, ...(await r.json()) }; };
+      const t2 = (await j2('/login', 'POST', { email: 'a@t.com', password: 'pw12345' })).token;
+      const c2 = await j2('/companies', 'POST', { name: 'X' }, t2);
+      assert.strictEqual((await j2('/ai/status', 'GET', null, t2)).enabled, false); console.log('PASS no key: AI disabled');
+      assert.strictEqual((await j2('/settings', 'PUT', { gemini_key: 'short' }, t2)).status, 400); console.log('PASS obviously wrong key refused');
+      const KEY = 'AIzaSyFAKE-KEY-1234567890abcdefXYZ';
+      const sv = await j2('/settings', 'PUT', { gemini_key: KEY }, t2);
+      assert.deepStrictEqual([sv.gemini_key_set, sv.gemini_key_source, sv.gemini_key_hint], [true, 'dashboard', 'AIza...fXYZ']); console.log('PASS key saved from dashboard, only a hint is returned');
+      assert.ok(!JSON.stringify(await j2('/settings', 'GET', null, t2)).includes('FAKE-KEY')); console.log('PASS full key never returned');
+      const raw = require('child_process').execFileSync('php', ['-r', `echo (new PDO('sqlite:${db2}'))->query("select v from settings")->fetchColumn();`]).toString();
+      assert.ok(raw.length > 20 && !raw.includes('FAKE-KEY')); console.log('PASS key is encrypted in the database');
+      assert.strictEqual((await j2('/ai/status', 'GET', null, t2)).enabled, true); console.log('PASS AI enabled after saving');
+      seen.length = 0;
+      assert.strictEqual((await j2('/settings/gemini-test', 'POST', {}, t2)).ok, true); assert.strictEqual(seen[0].key, KEY); console.log('PASS "Test key" works and uses the saved key');
+      const g2 = await j2('/ai/newsletter', 'POST', { company_id: c2.id, prompt: 'A monthly update about our new free SEO checklist' }, t2);
+      assert.strictEqual(g2.variants.length, 3); console.log('PASS generate works with the dashboard key');
+      const bw = await chromium.launch(); const pw = await bw.newPage({ viewport: { width: 1100, height: 700 } });
+      await pw.goto(B2 + '/'); await pw.fill('input[type=email]', 'a@t.com'); await pw.fill('input[type=password]', 'pw12345'); await pw.click('button[type=submit]');
+      await pw.waitForSelector('#nav'); await pw.click('#nav a[data-k=settings]'); await pw.waitForSelector('text=Key saved');
+      await pw.screenshot({ path: path.join(os.tmpdir(), 'settings.png') }); await bw.close(); console.log('PASS Settings page shows "Key saved"');
+      assert.strictEqual((await j2('/settings', 'PUT', { gemini_key: '' }, t2)).gemini_key_set, false); console.log('PASS key can be removed');
+    } finally { php2.kill(); fs.rmSync(db2, { force: true }); }
 
     // browser flow
     const br = await chromium.launch(); const pg = await br.newPage({ viewport: { width: 1280, height: 900 } });

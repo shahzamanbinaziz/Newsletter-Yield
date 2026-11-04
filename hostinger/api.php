@@ -492,6 +492,32 @@ on('POST', '/ai/newsletter', function () {
     }
 });
 
+/* settings (dashboard, no file editing needed) */
+on('GET', '/settings', function () {
+    $k = ai_key();
+    return ['gemini_key_set' => $k !== '', 'gemini_key_source' => ai_key_source(),
+        'gemini_key_hint' => $k !== '' ? substr($k, 0, 4) . '...' . substr($k, -4) : ''];
+});
+on('PUT', '/settings', function () {
+    global $BODY;
+    if (array_key_exists('gemini_key', $BODY)) {
+        $k = trim((string)$BODY['gemini_key']);
+        if ($k === '') {
+            run("DELETE FROM settings WHERE k='gemini_key'");
+        } else {
+            if (strlen($k) < 20 || strlen($k) > 200 || preg_match('/\s/', $k)) bad('That does not look like a Gemini API key. Copy the whole key from aistudio.google.com/apikey.');
+            run("INSERT OR REPLACE INTO settings(k,v) VALUES('gemini_key',?)", [encrypt_text($k)]);
+        }
+    }
+    $k = ai_key();
+    return ['gemini_key_set' => $k !== '', 'gemini_key_source' => ai_key_source(), 'gemini_key_hint' => $k !== '' ? substr($k, 0, 4) . '...' . substr($k, -4) : ''];
+});
+on('POST', '/settings/gemini-test', function () {
+    if (!ai_enabled()) bad('Save a Gemini key first.');
+    @set_time_limit(60);
+    try { return ai_test_key(); } catch (RuntimeException $e) { return ['ok' => false, 'error' => $e->getMessage()]; }
+});
+
 /* overview */
 on('GET', '/overview', function () {
     $c = require_company();
